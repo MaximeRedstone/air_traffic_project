@@ -50,15 +50,62 @@ def gen_date_df():
         parse_dates=None)
 
     date_df = merge_transform.fit_transform(date_df)
+
+    aal = pd.read_csv('../data/AAL.csv', sep=';')
+    aal.loc[:, 'Date'] = pd.to_datetime(aal.loc[:, 'Date'], format='%d/%m/%Y')
+    aal.dropna(inplace=True)
+
+    merge_transform = MergeTransformer(
+        X_ext=aal, 
+        filename=None,
+        filepath=None,
+        cols_to_rename={'Date': 'DateOfDeparture'},
+        how='left',
+        on=['DateOfDeparture'],
+        parse_dates=None)
+
+    date_df = merge_transform.fit_transform(date_df)
+
+    sp = pd.read_csv('../data/SP500.csv')
+    sp.loc[:, 'Date'] = pd.to_datetime(sp.loc[:, 'Date'], format='%d/%m/%Y')
+    aal.dropna(inplace=True)
+
+    merge_transform = MergeTransformer(
+        X_ext=sp, 
+        filename=None,
+        filepath=None,
+        cols_to_rename={'Date': 'DateOfDeparture'},
+        how='left',
+        on=['DateOfDeparture'],
+        parse_dates=None)
+
+    date_df = merge_transform.fit_transform(date_df)
     date_df.interpolate(method='linear', inplace=True)
 
     return date_df
 
-def gen_weather_df():
+def gen_statistics_df():
     
     weather_df = pd.read_csv('../data/weather.csv')
     weather_df['DateOfDeparture'] = pd.to_datetime(weather_df['Date'])
-    weather_df.drop(['Date', 'Events', 'Max Gust SpeedKm/h', 'Precipitationmm'], axis=1, inplace=True)    
+    weather_df.drop(['Date', 'Events', 'Max Gust SpeedKm/h', 'Precipitationmm'], axis=1, inplace=True) 
+
+    date_encoder = FunctionTransformer(_encode_dates)
+    weather_df = date_encoder.fit_transform(weather_df)
+
+    airport_statistics = pd.read_csv('../data/airports_statistics.csv', sep=';')
+
+    # print(weather_df.head())
+    # print(airport_statistics.head())
+
+    merge_transform = MergeTransformer(
+        X_ext=airport_statistics, 
+        cols_to_rename={'Date': 'DateOfDeparture'},
+        how='left',
+        on=['year', 'month'])
+
+    weather_df = merge_transform.fit_transform(weather_df)
+
     return weather_df
 
 def gen_airport_df():
@@ -67,20 +114,35 @@ def gen_airport_df():
     airport_df.drop(0, axis=0, inplace=True)
     airport_df.drop_duplicates(['iata_code'], inplace=True)
     airport_df.loc[:, 'iso_region'] = airport_df.loc[:, 'iso_region'].str.strip('US-')
-    airport_df = airport_df.loc[:, ['ident', 'latitude_deg', 'longitude_deg', 'iso_region']]
+    airport_df = airport_df.loc[:, ['ident', 'municipality', 'latitude_deg', 'longitude_deg', 'iso_region']]
     airport_df.rename({'ident': 'iata', 'iso_region': 'state'}, axis=1, inplace=True)
     airport_df['iata'] = airport_df['iata'].apply(lambda x: x[-3:])
 
-    airports_rank = pd.read_csv('../data/airports_passengers.csv', sep=';', encoding = "utf-8")
+    # airports_rank = pd.read_csv('../data/airports_passengers.csv', sep=';', encoding = "utf-8")
+    # merge_transform = MergeTransformer(
+    #     X_ext=airports_rank, 
+    #     filename=None,
+    #     filepath=None,
+    #     cols_to_keep=['2016', 'IATA'], 
+    #     cols_to_rename={'IATA': 'iata', '2016': 'capacity'},
+    #     how='left',
+    #     on=['iata'],
+    #     parse_dates=None)
+
+    city_population = pd.read_csv('../data/cititesPopulations.csv')
+
+    # print(city_population.head())
+    # print('\n\n\n')
+    # print(airport_df.head())
 
     merge_transform = MergeTransformer(
-        X_ext=airports_rank, 
+        X_ext=city_population, 
         filename=None,
         filepath=None,
-        cols_to_keep=['2016', 'IATA'], 
-        cols_to_rename={'IATA': 'iata', '2016': 'capacity'},
+        cols_to_keep=['name', 'pop2010'], 
+        cols_to_rename={'name': 'municipality'},
         how='left',
-        on=['iata'],
+        on=['municipality'],
         parse_dates=None)
 
     airport_df = merge_transform.fit_transform(airport_df)
@@ -123,10 +185,10 @@ def gen_state_feature_df():
     state_features_df = merge_transform.fit_transform(state_features_df)
 
     state_features_df['DateOfDeparture'] = pd.to_datetime(state_features_df['DateOfDeparture'], format='%d/%m/%Y')
-    state_features_df.drop('State', axis=1, inplace=True)
-    state_features_df.rename({'Abbreviation': 'state'}, axis=1, inplace=True)
+    # state_features_df.drop('State', axis=1, inplace=True)
+    # state_features_df.rename({'Abbreviation': 'state'}, axis=1, inplace=True)
 
-    state_features_df['bank_holidays'] = state_features_df.apply(lambda x: x.Date in holidays.US(years = x.Date.year, state=x.state), axis=1)
+    state_features_df['bank_holidays'] = state_features_df.apply(lambda x: x.Date in holidays.US(years = x.Date.year, state=x.Abbreviation), axis=1)
 
 
     school_holidays = pd.read_csv('../data/holidays.csv', sep=';', parse_dates=['date'])
@@ -145,13 +207,27 @@ def gen_state_feature_df():
     state_features_df.loc[:, 'holidays'] = state_features_df.loc[:, 'bank_holidays'] | state_features_df.loc[:, 'school_holidays']
     state_features_df.drop(['bank_holidays', 'school_holidays'], inplace=True, axis=1)
     state_features_df.loc[:, 'UnemploymentRate'] = state_features_df.loc[:, 'UnemploymentRate'].str.replace(',', '.')
+
+    gdp_per_cap = pd.read_csv('../data/GDP_per_capita_states.csv', sep=';')
+
+    merge_transform = MergeTransformer(
+        X_ext=gdp_per_cap, 
+        filename=None,
+        filepath=None,
+        cols_to_keep=['State', '2011', '2012', '2013'], 
+        how='left',
+        on=['State'],
+        parse_dates=None)
+
+    state_features_df = merge_transform.fit_transform(state_features_df)
+
     return state_features_df
 
 def create_db():
     
     database = {}
     database['Date'] = gen_date_df()
-    database['Weather'] = gen_weather_df()
+    database['AirportStatistics'] = gen_statistics_df()
     database['Airport'] = gen_airport_df()
     database['StateFeatures'] = gen_state_feature_df()
     return database
