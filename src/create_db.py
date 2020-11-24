@@ -44,7 +44,7 @@ def gen_date_df():
         X_ext=oil, 
         filename=None,
         filepath=None,
-        cols_to_rename={'date': 'DateOfDeparture'},
+        cols_to_rename={'date': 'DateOfDeparture', 'value': 'oil_price'},
         how='left',
         on=['DateOfDeparture'],
         parse_dates=None)
@@ -59,7 +59,7 @@ def gen_date_df():
         X_ext=aal, 
         filename=None,
         filepath=None,
-        cols_to_rename={'Date': 'DateOfDeparture'},
+        cols_to_rename={'Date': 'DateOfDeparture', 'Close': 'AAL_stock_price', 'Volume': 'AAL_stock_volume'},
         how='left',
         on=['DateOfDeparture'],
         parse_dates=None)
@@ -74,7 +74,7 @@ def gen_date_df():
         X_ext=sp, 
         filename=None,
         filepath=None,
-        cols_to_rename={'Date': 'DateOfDeparture'},
+        cols_to_rename={'Date': 'DateOfDeparture', 'Close': 'SP_stock_price', 'Volume': 'SP_stock_volume'},
         how='left',
         on=['DateOfDeparture'],
         parse_dates=None)
@@ -95,14 +95,10 @@ def gen_statistics_df():
 
     airport_statistics = pd.read_csv('../data/airports_statistics.csv', sep=';')
 
-    # print(weather_df.head())
-    # print(airport_statistics.head())
-
     merge_transform = MergeTransformer(
         X_ext=airport_statistics, 
-        cols_to_rename={'Date': 'DateOfDeparture'},
-        how='left',
-        on=['year', 'month'])
+        how='inner',
+        on=['year', 'month', 'AirPort'])
 
     weather_df = merge_transform.fit_transform(weather_df)
 
@@ -110,7 +106,7 @@ def gen_statistics_df():
 
 def gen_airport_df():
     
-    airport_df = pd.read_csv('../data/list-of-airports-in-united-states-of-america-hxl-tags-1.csv')
+    airport_df = pd.read_csv('../data/list-of-airports-in-united-states-of-america-hxl-tags-1.csv', sep=';')
     airport_df.drop(0, axis=0, inplace=True)
     airport_df.drop_duplicates(['iata_code'], inplace=True)
     airport_df.loc[:, 'iso_region'] = airport_df.loc[:, 'iso_region'].str.strip('US-')
@@ -118,23 +114,7 @@ def gen_airport_df():
     airport_df.rename({'ident': 'iata', 'iso_region': 'state'}, axis=1, inplace=True)
     airport_df['iata'] = airport_df['iata'].apply(lambda x: x[-3:])
 
-    # airports_rank = pd.read_csv('../data/airports_passengers.csv', sep=';', encoding = "utf-8")
-    # merge_transform = MergeTransformer(
-    #     X_ext=airports_rank, 
-    #     filename=None,
-    #     filepath=None,
-    #     cols_to_keep=['2016', 'IATA'], 
-    #     cols_to_rename={'IATA': 'iata', '2016': 'capacity'},
-    #     how='left',
-    #     on=['iata'],
-    #     parse_dates=None)
-
-    city_population = pd.read_csv('../data/cititesPopulations.csv')
-
-    # print(city_population.head())
-    # print('\n\n\n')
-    # print(airport_df.head())
-
+    city_population = pd.read_csv('../data/citiesPopulations.csv')
     merge_transform = MergeTransformer(
         X_ext=city_population, 
         filename=None,
@@ -146,33 +126,41 @@ def gen_airport_df():
         parse_dates=None)
 
     airport_df = merge_transform.fit_transform(airport_df)
-    airport_df.drop_duplicates(['iata'], inplace=True)
+    airport_df.drop_duplicates(['iata'], inplace=True)    
+    airport_df.to_csv('../data/airportmunicipalities.csv')
+    airport_df.drop(['municipality'], axis=1, inplace=True)
     
     return airport_df
 
 def gen_state_feature_df():
     
-    date_df = gen_date_df()
-    
-    state_features_df = pd.read_csv("../data/unemployment_rate.csv", sep=';', index_col='State')
-    state_features_df.stack()
-    state_features_df = pd.DataFrame(state_features_df.stack()).reset_index(drop=False)
-    state_features_df.rename(columns={"State": "State", "level_1": "DateOfDeparture", 0: "UnemploymentRate"}, inplace=True)
-    state_features_df.loc[:, 'DateOfDeparture'] = pd.to_datetime(state_features_df.loc[:, 'DateOfDeparture'], format='%d/%m/%Y')
+    X = pd.date_range(start='2011-09-01', end='2013-03-05')
+
+    state_features_df = pd.DataFrame(X, columns=['DateOfDeparture'])
     date_encoder = FunctionTransformer(_encode_dates)
     state_features_df = date_encoder.fit_transform(state_features_df)
-    state_features_df.rename(columns={"DateOfDeparture": "Date"}, inplace=True)
+    state_features_df.sort_values('DateOfDeparture', inplace=True)
+    state_features_df.drop_duplicates('DateOfDeparture', inplace=True)
+    
+    unemployment_df = pd.read_csv("../data/unemployment_rate.csv", sep=';', index_col='State')
+    unemployment_df.stack()
+    unemployment_df = pd.DataFrame(unemployment_df.stack()).reset_index(drop=False)
+    unemployment_df.rename(columns={"State": "State", "level_1": "DateOfDeparture", 0: "UnemploymentRate"}, inplace=True)
+    unemployment_df.loc[:, 'DateOfDeparture'] = pd.to_datetime(unemployment_df.loc[:, 'DateOfDeparture'], format='%d/%m/%Y')
+    date_encoder = FunctionTransformer(_encode_dates)
+    unemployment_df = date_encoder.fit_transform(unemployment_df)
+    unemployment_df.rename(columns={"DateOfDeparture": "Date"}, inplace=True)
 
     merge_transform = MergeTransformer(
-        X_ext=date_df,
-        cols_to_keep=['DateOfDeparture', 'year', 'month'],
-        how='right',
+        X_ext=unemployment_df,
+        cols_to_keep=['UnemploymentRate', 'year', 'month', 'State'],
+        how='left',
         on=['year', 'month'],
         parse_dates=None)
 
     state_features_df = merge_transform.fit_transform(state_features_df)
-    states_codes = pd.read_csv("../data/states.csv")
 
+    states_codes = pd.read_csv("../data/states.csv")
     merge_transform = MergeTransformer(
         X_ext=states_codes, 
         filename=None,
@@ -184,12 +172,23 @@ def gen_state_feature_df():
 
     state_features_df = merge_transform.fit_transform(state_features_df)
 
-    state_features_df['DateOfDeparture'] = pd.to_datetime(state_features_df['DateOfDeparture'], format='%d/%m/%Y')
-    # state_features_df.drop('State', axis=1, inplace=True)
-    # state_features_df.rename({'Abbreviation': 'state'}, axis=1, inplace=True)
+    gdp_per_cap = pd.read_csv('../data/GDP_per_capita_states.csv', sep=';')
 
-    state_features_df['bank_holidays'] = state_features_df.apply(lambda x: x.Date in holidays.US(years = x.Date.year, state=x.Abbreviation), axis=1)
+    merge_transform = MergeTransformer(
+        X_ext=gdp_per_cap, 
+        filename=None,
+        filepath=None,
+        cols_to_keep=['State', '2012'],
+        cols_to_rename={'2012': 'GDP_per_cap'},
+        how='left',
+        on=['State'],
+        parse_dates=None)
 
+    state_features_df = merge_transform.fit_transform(state_features_df)
+    state_features_df.to_csv('../data/merged_gdp.csv')
+
+    #Holidays
+    state_features_df['bank_holidays'] = state_features_df.apply(lambda x: x.DateOfDeparture in holidays.US(years = x.year, state=x.Abbreviation), axis=1)
 
     school_holidays = pd.read_csv('../data/holidays.csv', sep=';', parse_dates=['date'])
 
@@ -198,28 +197,18 @@ def gen_state_feature_df():
         filename=None,
         filepath=None,
         cols_to_keep=['date', 'is_vacation'], 
-        cols_to_rename={'date': 'Date', 'is_vacation': 'school_holidays'},
+        cols_to_rename={'date': 'DateOfDeparture', 'is_vacation': 'school_holidays'},
         how='left',
-        on=['Date'],
+        on=['DateOfDeparture'],
         parse_dates=None)
 
     state_features_df = merge_transform.fit_transform(state_features_df)
+    state_features_df.to_csv('../data/merged_holidays.csv')
+
     state_features_df.loc[:, 'holidays'] = state_features_df.loc[:, 'bank_holidays'] | state_features_df.loc[:, 'school_holidays']
     state_features_df.drop(['bank_holidays', 'school_holidays'], inplace=True, axis=1)
-    state_features_df.loc[:, 'UnemploymentRate'] = state_features_df.loc[:, 'UnemploymentRate'].str.replace(',', '.')
 
-    gdp_per_cap = pd.read_csv('../data/GDP_per_capita_states.csv', sep=';')
-
-    merge_transform = MergeTransformer(
-        X_ext=gdp_per_cap, 
-        filename=None,
-        filepath=None,
-        cols_to_keep=['State', '2011', '2012', '2013'], 
-        how='left',
-        on=['State'],
-        parse_dates=None)
-
-    state_features_df = merge_transform.fit_transform(state_features_df)
+    state_features_df.dropna(axis=0, inplace=True)
 
     return state_features_df
 
