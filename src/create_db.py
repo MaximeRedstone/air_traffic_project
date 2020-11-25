@@ -28,7 +28,7 @@ def _encode_dates(X):
 
 def gen_date_df():
     
-    X = pd.date_range(start='01/09/2011', end='05/03/2013')
+    X = pd.date_range(start='01/01/2011', end='31/12/2013')
 
     date_df = pd.DataFrame(X, columns=['DateOfDeparture'])
     date_encoder = FunctionTransformer(_encode_dates)
@@ -36,15 +36,16 @@ def gen_date_df():
     date_df.sort_values('DateOfDeparture', inplace=True)
     date_df.drop_duplicates('DateOfDeparture', inplace=True)
     
-    oil = pd.read_csv('../data/oil_price.csv')
-    oil.loc[:, 'date'] = pd.to_datetime(oil.loc[:, 'date'], format='%d/%m/%Y')
+    oil = pd.read_csv('../data/Oil.csv', sep=';')
+
+    oil.loc[:, 'Date'] = pd.to_datetime(oil.loc[:, 'Date'], format='%d/%m/%Y')
     oil.dropna(inplace=True)
 
     merge_transform = MergeTransformer(
         X_ext=oil, 
         filename=None,
         filepath=None,
-        cols_to_rename={'date': 'DateOfDeparture', 'value': 'oil_price'},
+        cols_to_rename={'Date': 'DateOfDeparture', 'Close': 'oil_stock_price', 'Volume': 'oil_stock_volume'},
         how='left',
         on=['DateOfDeparture'],
         parse_dates=None)
@@ -66,7 +67,7 @@ def gen_date_df():
 
     date_df = merge_transform.fit_transform(date_df)
 
-    sp = pd.read_csv('../data/SP500.csv')
+    sp = pd.read_csv('../data/SP500.csv', sep=';')
     sp.loc[:, 'Date'] = pd.to_datetime(sp.loc[:, 'Date'], format='%d/%m/%Y')
     aal.dropna(inplace=True)
 
@@ -101,6 +102,7 @@ def gen_statistics_df():
         on=['year', 'month', 'AirPort'])
 
     weather_df = merge_transform.fit_transform(weather_df)
+    weather_df.drop(['year', 'month', 'day', 'weekday', 'week', 'n_days'], axis=1, inplace=True)
 
     return weather_df
 
@@ -114,7 +116,8 @@ def gen_airport_df():
     airport_df.rename({'ident': 'iata', 'iso_region': 'state'}, axis=1, inplace=True)
     airport_df['iata'] = airport_df['iata'].apply(lambda x: x[-3:])
 
-    city_population = pd.read_csv('../data/citiesPopulations.csv')
+    city_population = pd.read_csv('../data/citiesPopulations.csv', sep=';')
+
     merge_transform = MergeTransformer(
         X_ext=city_population, 
         filename=None,
@@ -134,7 +137,7 @@ def gen_airport_df():
 
 def gen_state_feature_df():
     
-    X = pd.date_range(start='2011-09-01', end='2013-03-05')
+    X = pd.date_range(start='2011-01-01', end='2013-03-05')
 
     state_features_df = pd.DataFrame(X, columns=['DateOfDeparture'])
     date_encoder = FunctionTransformer(_encode_dates)
@@ -185,7 +188,6 @@ def gen_state_feature_df():
         parse_dates=None)
 
     state_features_df = merge_transform.fit_transform(state_features_df)
-    state_features_df.to_csv('../data/merged_gdp.csv')
 
     #Holidays
     state_features_df['bank_holidays'] = state_features_df.apply(lambda x: x.DateOfDeparture in holidays.US(years = x.year, state=x.Abbreviation), axis=1)
@@ -196,7 +198,7 @@ def gen_state_feature_df():
         X_ext=school_holidays, 
         filename=None,
         filepath=None,
-        cols_to_keep=['date', 'is_vacation'], 
+        cols_to_keep=['DateOfDeparture', 'school_holidays'], 
         cols_to_rename={'date': 'DateOfDeparture', 'is_vacation': 'school_holidays'},
         how='left',
         on=['DateOfDeparture'],

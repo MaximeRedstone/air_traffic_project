@@ -24,11 +24,21 @@ class MergeTransformer():
         if not(self.filename is None):
             self.X_ext = self.read_csv_ramp(parse_dates=self.parse_dates)
 
-        if self.cols_to_keep != 'all':
-            self.X_ext = self.X_ext[self.cols_to_keep]
-
         if self.cols_to_rename != None:
             self.X_ext = self.X_ext.rename(columns=self.cols_to_rename)
+        
+        if self.cols_to_rename != None and self.cols_to_keep != 'all':
+            for idx, col in enumerate(self.cols_to_keep):
+                if col in self.cols_to_rename:
+                    print("Goes in if")
+                    self.cols_to_keep.remove(col)
+                    self.cols_to_keep.append(self.cols_to_rename[col])
+
+        if self.cols_to_keep != 'all':
+            for on_col in self.on:
+                if on_col not in self.cols_to_keep:
+                    self.cols_to_keep.append(on_col)
+            self.X_ext = self.X_ext[self.cols_to_keep]
 
         X_merged = pd.merge(
             X, self.X_ext, how=self.how, on=self.on, sort=False
