@@ -2,7 +2,10 @@ from sklearn.preprocessing import OneHotEncoder, StandardScaler, FunctionTransfo
 from sklearn.linear_model import LinearRegression
 from sklearn.pipeline import make_pipeline
 from sklearn.compose import make_column_transformer
+from sklearn.ensemble import RandomForestRegressor
 import geopy.distance
+import os
+import pandas as pd
 
 columns = ['DateOfDeparture', 
         'AirPort', 'Max TemperatureC',	'Mean TemperatureC', 'Min TemperatureC', 'Dew PointC',
@@ -14,28 +17,69 @@ columns = ['DateOfDeparture',
         'oil_stock_volume', 'AAL_stock_price', 'AAL_stock_volume', 'SP_stock_price', 'SP_stock_volume',
         'latitude_deg',	'longitude_deg', 'state', 'pop2010', 'UnemploymentRate', 'holidays', 'GDP_per_cap']
 
+
+def _encode_dates(X):
+    # With pandas < 1.0, we wil get a SettingWithCopyWarning
+    # In our case, we will avoid this warning by triggering a copy
+    # More information can be found at:
+    # https://github.com/scikit-learn/scikit-learn/issues/16191
+    X_encoded = X.copy()
+
+    # Make sure that DateOfDeparture is of datetime format
+    X_encoded.loc[:, 'DateOfDeparture'] = pd.to_datetime(X_encoded['DateOfDeparture'])
+    # Encode the DateOfDeparture
+    X_encoded.loc[:, 'year'] = X_encoded['DateOfDeparture'].dt.year
+    X_encoded.loc[:, 'month'] = X_encoded['DateOfDeparture'].dt.month
+    X_encoded.loc[:, 'day'] = X_encoded['DateOfDeparture'].dt.day
+    X_encoded.loc[:, 'weekday'] = X_encoded['DateOfDeparture'].dt.weekday
+    X_encoded.loc[:, 'week'] = X_encoded['DateOfDeparture'].dt.week
+    X_encoded.loc[:, 'n_days'] = X_encoded['DateOfDeparture'].apply(
+        lambda date: (date - pd.to_datetime("1970-01-01")).days)
+
+    return X_encoded
+
+def clean_df(X):
+    
+    date_encoder = FunctionTransformer(_encode_dates)
+    X = date_encoder.fit_transform(X)
+    
+    X.rename({'year':'year_departure', 'month':'month_departure', 'day':'day_departure', 
+            'weekday':'weekday_departure',
+            'week':'week_departure',
+            'n_days':'n_days_departure'}, axis=1, inplace=True)
+    
+    columns = ['DateOfDeparture', 'DateBooked', 'Arrival', 'Departure', 'state_dep', 'state_arr']
+    X.drop(columns, axis=1, inplace=True)
+    
+    return X
+
 def _merge_external_data(X):
         filepath = os.path.join(
             os.path.dirname(__file__), 'external_data.csv'
         )
         
         X = X.copy()  # to avoid raising SettingOnCopyWarning
+
+        X['Days_to_departure'] = (X['WeeksToDeparture'] * 7).round()
         X.loc[:, "DateOfDeparture"] = pd.to_datetime(X['DateOfDeparture'])
         X['DateBooked'] = X['DateOfDeparture'] -  pd.to_timedelta(X['Days_to_departure'], unit='d')
+        X.loc[:, "DateBooked"] = pd.to_datetime(X['DateBooked'])
 
         ext_data = pd.read_csv(filepath)
+        ext_data.loc[:, "DateOfDeparture"] = pd.to_datetime(ext_data['DateOfDeparture'])
 
-        nation_wide_daily = ext_data[['DateOfDeparture', 'year', 'month', 'day', 'weekday', 'week', 'n_days', 
+        nation_wide_daily = ext_data[['DateOfDeparture', 'AirPort', 'year', 'month', 'day', 'weekday', 'week', 'n_days', 
                                         'oil_stock_price', 'oil_stock_volume', 
                                         'AAL_stock_price', 'AAL_stock_volume', 
                                         'SP_stock_price', 'SP_stock_volume']]
+
         nation_wide_daily = nation_wide_daily.rename(
-            columns={'DateOfDeparture': 'DateBooked', 'year': 'year_booked', 'month': 'month_booked',
+            columns={'DateOfDeparture': 'DateBooked', 'AirPort': 'Departure',
+            'year': 'year_booked', 'month': 'month_booked',
             'day': 'day_booked', 'weekday': 'weekday_booked',
             'week': 'week_booked', 'n_days': 'n_days_booked'})
-        X_merged = pd.merge(
-            X, nation_wide_daily, how='left', on=['DateBooked'], sort=False
-        )
+
+        X_merged = pd.merge(X, nation_wide_daily, how='left', on=['DateBooked', 'Departure'], sort=False)
 
         airport_info_dep = ext_data[['DateOfDeparture', 
         'AirPort', 'Max TemperatureC',	'Mean TemperatureC', 'Min TemperatureC', 'Dew PointC',
@@ -44,8 +88,9 @@ def _merge_external_data(X):
         'Max VisibilityKm', 'Mean VisibilityKm', 'Min VisibilitykM', 'Max Wind SpeedKm/h', 
         'Mean Wind SpeedKm/h', 'CloudCover', 'WindDirDegrees', 'LoadFactorDomestic',
         'PassengersDomestic', 'latitude_deg', 'longitude_deg', 'state', 'pop2010', 'UnemploymentRate', 'holidays', 'GDP_per_cap']]
+
         airport_info_dep = airport_info_dep.rename(
-            columns={'Airport': 'Departure',
+            columns={'AirPort': 'Departure',
             'Max TemperatureC':	'Max TemperatureC_dep',
             'Mean TemperatureC': 'Mean TemperatureC_dep',
             'Min TemperatureC': 'Min TemperatureC_dep',
@@ -73,7 +118,8 @@ def _merge_external_data(X):
             'pop2010': 'pop2010_dep', 
             'UnemploymentRate': 'UnemploymentRate_dep', 
             'holidays': 'holidays_dep', 
-            'GDP_per_cap': 'GDP_per_cap_dep']]})
+            'GDP_per_cap': 'GDP_per_cap_dep'})
+
         X_merged = pd.merge(
             X_merged, airport_info_dep, how='left', on=['DateOfDeparture', 'Departure'], sort=False
         )
@@ -86,7 +132,7 @@ def _merge_external_data(X):
         'Mean Wind SpeedKm/h', 'CloudCover', 'WindDirDegrees', 'LoadFactorDomestic',
         'PassengersDomestic', 'latitude_deg', 'longitude_deg', 'state', 'pop2010', 'UnemploymentRate', 'holidays', 'GDP_per_cap']]
         airport_info_arr = airport_info_arr.rename(
-            columns={'Airport': 'Arrival',
+            columns={'AirPort': 'Arrival',
             'Max TemperatureC':	'Max TemperatureC_arr',
             'Mean TemperatureC': 'Mean TemperatureC_arr',
             'Min TemperatureC': 'Min TemperatureC_arr',
@@ -114,7 +160,7 @@ def _merge_external_data(X):
             'pop2010': 'pop2010_arr', 
             'UnemploymentRate': 'UnemploymentRate_arr', 
             'holidays': 'holidays_arr', 
-            'GDP_per_cap': 'GDP_per_cap_arr']]})
+            'GDP_per_cap': 'GDP_per_cap_arr'})
         X_merged = pd.merge(
             X_merged, airport_info_arr, how='left', on=['DateOfDeparture', 'Arrival'], sort=False
         )
@@ -123,6 +169,9 @@ def _merge_external_data(X):
         (x.latitude_deg_dep, x.longitude_deg_dep), 
         (x.latitude_deg_arr, x.longitude_deg_arr)).km, axis=1)
 
+        X_merged = clean_df(X_merged)
+        
+        X_merged.to_csv('merged.csv')
         return X_merged
 
 def get_estimator():
@@ -147,8 +196,8 @@ def get_estimator():
     #     (categorical_encoder, categorical_cols),
     #     remainder='passthrough')  # passthrough numerical columns as they are
 
-    # regressor = RandomForestRegressor(n_estimators=10, max_depth=10, max_features=10)
+    regressor = RandomForestRegressor(n_estimators=10, max_depth=10, max_features=10)
 
-    pipeline = make_pipeline(data_merger)#, preprocessor, regressor)
+    pipeline = make_pipeline(data_merger, regressor)#, preprocessor, regressor)
 
     return pipeline
