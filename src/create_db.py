@@ -119,10 +119,10 @@ def gen_airport_df():
     city_population = pd.read_csv('../data/citiesPopulations.csv', sep=';')
 
     merge_transform = MergeTransformer(
-        X_ext=city_population, 
+        X_ext=city_population,
         filename=None,
         filepath=None,
-        cols_to_keep=['name', 'pop2010'], 
+        cols_to_keep=['name', 'pop2010'],
         cols_to_rename={'name': 'municipality'},
         how='left',
         on=['municipality'],
