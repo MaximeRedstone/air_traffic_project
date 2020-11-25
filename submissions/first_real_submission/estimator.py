@@ -3,6 +3,8 @@ from sklearn.linear_model import LinearRegression
 from sklearn.pipeline import make_pipeline
 from sklearn.compose import make_column_transformer
 from sklearn.ensemble import RandomForestRegressor
+from sklearn.model_selection import GridSearchCV, cross_val_score
+
 import geopy.distance
 import os
 import pandas as pd
@@ -87,7 +89,8 @@ def _merge_external_data(X):
         'Max Sea Level PressurehPa', 'Mean Sea Level PressurehPa', 'Min Sea Level PressurehPa',
         'Max VisibilityKm', 'Mean VisibilityKm', 'Min VisibilitykM', 'Max Wind SpeedKm/h', 
         'Mean Wind SpeedKm/h', 'CloudCover', 'WindDirDegrees', 'LoadFactorDomestic',
-        'PassengersDomestic', 'latitude_deg', 'longitude_deg', 'state', 'pop2010', 'UnemploymentRate', 'holidays', 'GDP_per_cap']]
+        'PassengersDomestic', 'latitude_deg', 'longitude_deg', 'state', 'pop2010', 
+        'UnemploymentRate', 'holidays', 'GDP_per_cap', 'closest_holidays']]
 
         airport_info_dep = airport_info_dep.rename(
             columns={'AirPort': 'Departure',
@@ -117,7 +120,8 @@ def _merge_external_data(X):
             'state': 'state_dep', 
             'pop2010': 'pop2010_dep', 
             'UnemploymentRate': 'UnemploymentRate_dep', 
-            'holidays': 'holidays_dep', 
+            'holidays': 'holidays_dep',
+            'closest_holidays': 'closest_holidays_dep', 
             'GDP_per_cap': 'GDP_per_cap_dep'})
 
         X_merged = pd.merge(
@@ -130,7 +134,8 @@ def _merge_external_data(X):
         'Max Sea Level PressurehPa', 'Mean Sea Level PressurehPa', 'Min Sea Level PressurehPa',
         'Max VisibilityKm', 'Mean VisibilityKm', 'Min VisibilitykM', 'Max Wind SpeedKm/h', 
         'Mean Wind SpeedKm/h', 'CloudCover', 'WindDirDegrees', 'LoadFactorDomestic',
-        'PassengersDomestic', 'latitude_deg', 'longitude_deg', 'state', 'pop2010', 'UnemploymentRate', 'holidays', 'GDP_per_cap']]
+        'PassengersDomestic', 'latitude_deg', 'longitude_deg', 'state', 'pop2010', 
+        'UnemploymentRate', 'holidays', 'GDP_per_cap', 'closest_holidays']]
         airport_info_arr = airport_info_arr.rename(
             columns={'AirPort': 'Arrival',
             'Max TemperatureC':	'Max TemperatureC_arr',
@@ -159,7 +164,8 @@ def _merge_external_data(X):
             'state': 'state_arr', 
             'pop2010': 'pop2010_arr', 
             'UnemploymentRate': 'UnemploymentRate_arr', 
-            'holidays': 'holidays_arr', 
+            'holidays': 'holidays_arr',
+            'closest_holidays': 'closest_holidays_arr', 
             'GDP_per_cap': 'GDP_per_cap_arr'})
         X_merged = pd.merge(
             X_merged, airport_info_arr, how='left', on=['DateOfDeparture', 'Arrival'], sort=False
@@ -170,7 +176,7 @@ def _merge_external_data(X):
         (x.latitude_deg_arr, x.longitude_deg_arr)).km, axis=1)
 
         X_merged = clean_df(X_merged)
-        
+    
         X_merged.to_csv('merged.csv')
         return X_merged
 
@@ -196,8 +202,18 @@ def get_estimator():
     #     (categorical_encoder, categorical_cols),
     #     remainder='passthrough')  # passthrough numerical columns as they are
 
-    regressor = RandomForestRegressor(n_estimators=10, max_depth=10, max_features=10)
+    # regressor = RandomForestRegressor(n_estimators=10, max_depth=10, max_features=10)
 
-    pipeline = make_pipeline(data_merger, regressor)#, preprocessor, regressor)
+    grid_params = {
+    'min_samples_split': [0.01],
+    'max_features': [0.5]}
+
+    gs = GridSearchCV(estimator=RandomForestRegressor(),
+                  param_grid=grid_params,
+                  n_jobs=-1,
+                  cv=5,
+                  verbose=0)
+
+    pipeline = make_pipeline(data_merger, gs)#, preprocessor, regressor)
 
     return pipeline

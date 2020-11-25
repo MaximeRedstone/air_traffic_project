@@ -28,6 +28,22 @@ def _encode_dates(X):
     )
     return X_encoded
 
+def days_to_closest_holiday(date, state):
+    
+    if type(date) is pd.Timestamp:
+        date = date.date()
+    
+    holiday_list = holidays.US(years = [2011, 2012, 2013], state=state)
+    min_diff = 10e9
+        
+    for k, v in holiday_list.items():
+        diff = abs((date - k).days)
+#         print(f"Holiday = {k}, diff = {diff} days")
+        if diff < min_diff:
+            min_diff = diff
+            
+    return (min_diff + 1)
+
 def gen_date_df():
     
     X = pd.date_range(start='01/01/2011', end='31/12/2013')
@@ -207,7 +223,7 @@ def gen_state_feature_df():
     state_features_df['bank_holidays'] = state_features_df.apply(lambda x: x.DateOfDeparture in holidays.US(years = x.year, state=x.Abbreviation), axis=1)
 
     school_holidays = pd.read_csv('../data/holidays.csv', sep=';', parse_dates=['date'])
-
+    
     merge_transform = MergeTransformer(
         X_ext=school_holidays, 
         filename=None,
@@ -221,6 +237,8 @@ def gen_state_feature_df():
     state_features_df = merge_transform.fit_transform(state_features_df)
     state_features_df.loc[:, 'holidays'] = state_features_df.loc[:, 'bank_holidays'] | state_features_df.loc[:, 'school_holidays']
     state_features_df.drop(['bank_holidays', 'school_holidays'], inplace=True, axis=1)
+
+    state_features_df['closest_holidays'] = state_features_df.apply(lambda x: days_to_closest_holiday(x.DateOfDeparture, x.Abbreviation), axis=1)
 
     state_features_df.dropna(axis=0, inplace=True)
 
