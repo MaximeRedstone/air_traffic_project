@@ -2,6 +2,8 @@ from sklearn.preprocessing import FunctionTransformer
 import pandas as pd
 import holidays
 import warnings
+import itertools
+from itertools import product
 from merge_transformer import MergeTransformer
 
 warnings.simplefilter(action='ignore', category=FutureWarning)
@@ -88,23 +90,36 @@ def gen_date_df():
 def gen_statistics_df():
     
     weather_df = pd.read_csv('../data/weather.csv')
+    airport_list = weather_df['AirPort'].unique()
+    airport = pd.DataFrame(airport_list, columns=['AirPort'])
+    date_list = pd.date_range(start='01/01/2011', end='31/12/2013')
+
+    date_airports = pd.DataFrame(list(product(date_list, airport_list)), columns=['DateOfDeparture', 'AirPort'])
+
     weather_df['DateOfDeparture'] = pd.to_datetime(weather_df['Date'])
     weather_df.drop(['Date', 'Events', 'Max Gust SpeedKm/h', 'Precipitationmm'], axis=1, inplace=True) 
 
-    date_encoder = FunctionTransformer(_encode_dates)
-    weather_df = date_encoder.fit_transform(weather_df)
+    merge_transform = MergeTransformer(
+        X_ext=weather_df, 
+        how='left',
+        on=['DateOfDeparture', 'AirPort'])
 
-    airport_statistics = pd.read_csv('../data/airports_statistics.csv', sep=';')
+    date_airports = merge_transform.fit_transform(date_airports)
+    
+    date_encoder = FunctionTransformer(_encode_dates)
+    date_airports = date_encoder.fit_transform(date_airports)
+
+    airport_statistics = pd.read_csv('../data/airports_statistics.csv', sep=',')
 
     merge_transform = MergeTransformer(
         X_ext=airport_statistics, 
-        how='inner',
+        how='left',
         on=['year', 'month', 'AirPort'])
 
-    weather_df = merge_transform.fit_transform(weather_df)
-    weather_df.drop(['year', 'month', 'day', 'weekday', 'week', 'n_days'], axis=1, inplace=True)
+    date_airports = merge_transform.fit_transform(date_airports)
+    date_airports.drop(['year', 'month', 'day', 'weekday', 'week', 'n_days'], axis=1, inplace=True)
 
-    return weather_df
+    return date_airports
 
 def gen_airport_df():
     
@@ -130,7 +145,6 @@ def gen_airport_df():
 
     airport_df = merge_transform.fit_transform(airport_df)
     airport_df.drop_duplicates(['iata'], inplace=True)    
-    airport_df.to_csv('../data/airportmunicipalities.csv')
     airport_df.drop(['municipality'], axis=1, inplace=True)
     
     return airport_df
@@ -205,8 +219,6 @@ def gen_state_feature_df():
         parse_dates=None)
 
     state_features_df = merge_transform.fit_transform(state_features_df)
-    state_features_df.to_csv('../data/merged_holidays.csv')
-
     state_features_df.loc[:, 'holidays'] = state_features_df.loc[:, 'bank_holidays'] | state_features_df.loc[:, 'school_holidays']
     state_features_df.drop(['bank_holidays', 'school_holidays'], inplace=True, axis=1)
 
