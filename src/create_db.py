@@ -8,7 +8,8 @@ from merge_transformer import MergeTransformer
 
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
-def _encode_dates(X):
+
+def _encode_dates(X, drop=False):
     # With pandas < 1.0, we wil get a SettingWithCopyWarning
     # In our case, we will avoid this warning by triggering a copy
     # More information can be found at:
@@ -24,8 +25,27 @@ def _encode_dates(X):
     X_encoded.loc[:, 'weekday'] = X_encoded['DateOfDeparture'].dt.weekday
     X_encoded.loc[:, 'week'] = X_encoded['DateOfDeparture'].dt.week
     X_encoded.loc[:, 'n_days'] = X_encoded['DateOfDeparture'].apply(
-        lambda date: (date - pd.to_datetime("1970-01-01")).days
-    )
+        lambda date: (date - pd.to_datetime("1970-01-01")).days)
+    
+    X_encoded.loc[:, 'day_nb'] = X_encoded['DateOfDeparture'].dt.dayofyear
+    
+    X_encoded['leap_year_year'] = X_encoded['year'].apply(
+        lambda x: True if x == 2012 else False)
+    X_encoded['leap_year_month'] = X_encoded['month'].apply(
+        lambda x: True if x > 2 else False)
+    X_encoded.loc[:, 'leap_year'] = X_encoded.loc[:, 'leap_year_year'] & X_encoded.loc[:, 'leap_year_month']
+
+    X_encoded['day_nb_leap'] = X_encoded.apply(lambda x: 
+                x.day_nb - 1 if x.leap_year == True else x.day_nb, axis=1)
+    X_encoded.drop(['leap_year_year', 'leap_year_month', 'leap_year', 'day_nb'], inplace=True, axis=1)
+    X_encoded.rename({'day_nb_leap': 'day_nb'}, axis=1, inplace=True)
+    
+    X_encoded.loc[:, 'year'].astype("int64")
+    
+    if drop:
+        print('drop DateOfDeparture')
+        X_encoded.drop('DateOfDeparture', inplace=True, axis=1)
+        
     return X_encoded
 
 def days_to_closest_holiday(date, state):
@@ -104,26 +124,18 @@ def gen_date_df():
     week_days_df = pd.read_csv('../data/weekdays_means.csv', sep=';')
     weeks_df = pd.read_csv('../data/weeks_means.csv', sep=';')
     months_df = pd.read_csv('../data/months_means.csv', sep=';')
+    day_nb_df = pd.read_csv('../data/day_nb_means.csv', sep=';')
 
-    merge_transform = MergeTransformer(
-        X_ext=week_days_df, 
-        how='left',
-        on=['weekday'])
-
+    merge_transform = MergeTransformer(X_ext=week_days_df, how='left', on=['weekday'])
     date_df = merge_transform.fit_transform(date_df)
 
-    merge_transform = MergeTransformer(
-        X_ext=weeks_df, 
-        how='left',
-        on=['week'])
-
+    merge_transform = MergeTransformer(X_ext=weeks_df, how='left', on=['week'])
     date_df = merge_transform.fit_transform(date_df)
 
-    merge_transform = MergeTransformer(
-        X_ext=months_df,
-        how='left',
-        on=['month'])
+    merge_transform = MergeTransformer(X_ext=months_df, how='left', on=['month'])
+    date_df = merge_transform.fit_transform(date_df)
 
+    merge_transform = MergeTransformer(X_ext=day_nb_df, how='left', on=['day_nb'])
     date_df = merge_transform.fit_transform(date_df)
 
     return date_df
@@ -158,7 +170,7 @@ def gen_statistics_df():
         on=['year', 'month', 'AirPort'])
 
     date_airports = merge_transform.fit_transform(date_airports)
-    date_airports.drop(['year', 'month', 'day', 'weekday', 'week', 'n_days'], axis=1, inplace=True)
+    date_airports.drop(['year', 'month', 'day', 'weekday', 'week', 'n_days', 'day_nb'], axis=1, inplace=True)
 
     return date_airports
 
@@ -245,6 +257,7 @@ def gen_state_feature_df():
     state_features_df = merge_transform.fit_transform(state_features_df)
 
     #Holidays
+    print(state_features_df.info())
     state_features_df['bank_holidays'] = state_features_df.apply(lambda x: x.DateOfDeparture in holidays.US(years = x.year, state=x.Abbreviation), axis=1)
 
     school_holidays = pd.read_csv('../data/holidays.csv', sep=';', parse_dates=['date'])
