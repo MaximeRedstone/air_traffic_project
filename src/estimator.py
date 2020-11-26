@@ -4,6 +4,7 @@ from sklearn.pipeline import make_pipeline
 from sklearn.compose import make_column_transformer
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import GridSearchCV, cross_val_score
+import numpy as np
 
 import geopy.distance
 import os
@@ -45,12 +46,10 @@ def clean_df(X):
     date_encoder = FunctionTransformer(_encode_dates)
     X = date_encoder.fit_transform(X)
     
-    X.rename({'year':'year_departure', 'month':'month_departure', 'day':'day_departure', 
-            'weekday':'weekday_departure',
-            'week':'week_departure',
+    X.rename({'year':'year_departure', 'day':'day_departure', 
             'n_days':'n_days_departure'}, axis=1, inplace=True)
     
-    columns = ['DateOfDeparture', 'DateBooked', 'Arrival', 'Departure', 'state_dep', 'state_arr']
+    columns = ['DateOfDeparture', 'DateBooked', 'state_dep', 'state_arr', 'week', 'month', 'weekday']
     X.drop(columns, axis=1, inplace=True)
     
     return X
@@ -70,20 +69,23 @@ def _merge_external_data(X):
         ext_data = pd.read_csv(filepath)
         ext_data.loc[:, "DateOfDeparture"] = pd.to_datetime(ext_data['DateOfDeparture'])
 
-        nation_wide_daily = ext_data[['DateOfDeparture', 'AirPort', 'year', 'month', 'day', 'weekday', 'week', 'n_days', 
+        nation_wide_daily = ext_data[['DateOfDeparture', 'AirPort', 'Arrival', 'route_mean', 
+                                        'year', 'day', 'n_days',
+                                        'day_mean', 'week_mean', 'month_mean',
                                         'oil_stock_price', 'oil_stock_volume', 
                                         'AAL_stock_price', 'AAL_stock_volume', 
                                         'SP_stock_price', 'SP_stock_volume']]
-
+        
         nation_wide_daily = nation_wide_daily.rename(
-            columns={'DateOfDeparture': 'DateBooked', 'AirPort': 'Departure',
-            'year': 'year_booked', 'month': 'month_booked',
-            'day': 'day_booked', 'weekday': 'weekday_booked',
-            'week': 'week_booked', 'n_days': 'n_days_booked'})
+            columns={'AirPort': 'Departure'})
 
-        X_merged = pd.merge(X, nation_wide_daily, how='left', on=['DateBooked', 'Departure'], sort=False)
+        X_merged = pd.merge(X, nation_wide_daily, how='left', on=['DateOfDeparture', 'Departure', 'Arrival'], sort=False)
 
-        airport_info_dep = ext_data[['DateOfDeparture', 
+        print('X_merged 1 = ', X_merged.shape)
+        X_merged.to_csv('shit.csv')
+
+
+        airport_info_dep = ext_data[['DateOfDeparture', 'Arrival',
         'AirPort', 'Max TemperatureC',	'Mean TemperatureC', 'Min TemperatureC', 'Dew PointC',
         'MeanDew PointC', 'Min DewpointC', 'Max Humidity', 'Mean Humidity', 'Min Humidity', 
         'Max Sea Level PressurehPa', 'Mean Sea Level PressurehPa', 'Min Sea Level PressurehPa',
@@ -125,10 +127,14 @@ def _merge_external_data(X):
             'GDP_per_cap': 'GDP_per_cap_dep'})
 
         X_merged = pd.merge(
-            X_merged, airport_info_dep, how='left', on=['DateOfDeparture', 'Departure'], sort=False
+            X_merged, airport_info_dep, how='left', on=['DateOfDeparture', 'Departure', 'Arrival'], sort=False
         )
 
-        airport_info_arr = ext_data[['DateOfDeparture', 
+        print('X_merged 3 = ', X_merged.shape)
+        X_merged.to_csv('../data/shit.csv')
+
+
+        airport_info_arr = ext_data[['DateOfDeparture', 'Arrival',
         'AirPort', 'Max TemperatureC',	'Mean TemperatureC', 'Min TemperatureC', 'Dew PointC',
         'MeanDew PointC', 'Min DewpointC', 'Max Humidity', 'Mean Humidity', 'Min Humidity', 
         'Max Sea Level PressurehPa', 'Mean Sea Level PressurehPa', 'Min Sea Level PressurehPa',
@@ -137,7 +143,9 @@ def _merge_external_data(X):
         'PassengersDomestic', 'latitude_deg', 'longitude_deg', 'state', 'pop2010', 
         'UnemploymentRate', 'holidays', 'GDP_per_cap', 'closest_holidays']]
         airport_info_arr = airport_info_arr.rename(
-            columns={'AirPort': 'Arrival',
+            columns={
+            'Arrival': 'Departure',
+            'AirPort': 'Arrival',
             'Max TemperatureC':	'Max TemperatureC_arr',
             'Mean TemperatureC': 'Mean TemperatureC_arr',
             'Min TemperatureC': 'Min TemperatureC_arr',
@@ -168,16 +176,21 @@ def _merge_external_data(X):
             'closest_holidays': 'closest_holidays_arr', 
             'GDP_per_cap': 'GDP_per_cap_arr'})
         X_merged = pd.merge(
-            X_merged, airport_info_arr, how='left', on=['DateOfDeparture', 'Arrival'], sort=False
+            X_merged, airport_info_arr, how='left', on=['DateOfDeparture', 'Arrival', 'Departure'], sort=False
         )
+
+        print('X_merged 4 = ', X_merged.shape)
+
 
         X_merged['distance'] = X_merged.apply(lambda x: geopy.distance.geodesic(
         (x.latitude_deg_dep, x.longitude_deg_dep), 
         (x.latitude_deg_arr, x.longitude_deg_arr)).km, axis=1)
+        
+        X_merged['Temp_diff'] = X_merged['Mean TemperatureC_dep'] - X_merged['Mean TemperatureC_arr']
+        X_merged['Temp_diff_abs'] = np.absolute(X_merged['Mean TemperatureC_dep'] - X_merged['Mean TemperatureC_arr'])
 
         X_merged = clean_df(X_merged)
-    
-        X_merged.to_csv('merged.csv')
+        
         return X_merged
 
 def get_estimator():

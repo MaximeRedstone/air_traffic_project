@@ -75,13 +75,18 @@ def _merge_external_data(X):
                                         'AAL_stock_price', 'AAL_stock_volume', 
                                         'SP_stock_price', 'SP_stock_volume']]
 
-        nation_wide_daily = nation_wide_daily.rename(
-            columns={'DateOfDeparture': 'DateBooked', 'AirPort': 'Departure',
-            'year': 'year_booked', 'month': 'month_booked',
-            'day': 'day_booked', 'weekday': 'weekday_booked',
-            'week': 'week_booked', 'n_days': 'n_days_booked'})
+#         nation_wide_daily = nation_wide_daily.rename(
+#             columns={'DateOfDeparture': 'DateBooked', 'AirPort': 'Departure',
+#             'year': 'year_booked', 'month': 'month_booked',
+#             'day': 'day_booked', 'weekday': 'weekday_booked',
+#             'week': 'week_booked', 'n_days': 'n_days_booked'})
 
-        X_merged = pd.merge(X, nation_wide_daily, how='left', on=['DateBooked', 'Departure'], sort=False)
+#         X_merged = pd.merge(X, nation_wide_daily, how='left', on=['DateBooked', 'Departure'], sort=False)
+        
+        nation_wide_daily = nation_wide_daily.rename(
+            columns={'AirPort': 'Departure'})
+
+        X_merged = pd.merge(X, nation_wide_daily, how='left', on=['DateOfDeparture', 'Departure'], sort=False)
 
         airport_info_dep = ext_data[['DateOfDeparture', 
         'AirPort', 'Max TemperatureC',	'Mean TemperatureC', 'Min TemperatureC', 'Dew PointC',
@@ -177,7 +182,7 @@ def _merge_external_data(X):
 
         X_merged = clean_df(X_merged)
     
-        X_merged.to_csv('merged.csv')
+        X_merged.to_csv('merged_departure.csv')
         return X_merged
 
 def get_estimator():

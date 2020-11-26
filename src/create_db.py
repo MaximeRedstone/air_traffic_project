@@ -46,7 +46,7 @@ def days_to_closest_holiday(date, state):
 
 def gen_date_df():
     
-    X = pd.date_range(start='01/01/2011', end='31/12/2013')
+    X = pd.date_range(start='01/01/2011', end='05/03/2013')
 
     date_df = pd.DataFrame(X, columns=['DateOfDeparture'])
     date_encoder = FunctionTransformer(_encode_dates)
@@ -101,6 +101,31 @@ def gen_date_df():
     date_df = merge_transform.fit_transform(date_df)
     date_df.interpolate(method='linear', inplace=True)
 
+    week_days_df = pd.read_csv('../data/weekdays_means.csv', sep=';')
+    weeks_df = pd.read_csv('../data/weeks_means.csv', sep=';')
+    months_df = pd.read_csv('../data/months_means.csv', sep=';')
+
+    merge_transform = MergeTransformer(
+        X_ext=week_days_df, 
+        how='left',
+        on=['weekday'])
+
+    date_df = merge_transform.fit_transform(date_df)
+
+    merge_transform = MergeTransformer(
+        X_ext=weeks_df, 
+        how='left',
+        on=['week'])
+
+    date_df = merge_transform.fit_transform(date_df)
+
+    merge_transform = MergeTransformer(
+        X_ext=months_df,
+        how='left',
+        on=['month'])
+
+    date_df = merge_transform.fit_transform(date_df)
+
     return date_df
 
 def gen_statistics_df():
@@ -108,7 +133,7 @@ def gen_statistics_df():
     weather_df = pd.read_csv('../data/weather.csv')
     airport_list = weather_df['AirPort'].unique()
     airport = pd.DataFrame(airport_list, columns=['AirPort'])
-    date_list = pd.date_range(start='01/01/2011', end='31/12/2013')
+    date_list = pd.date_range(start='01/01/2011', end='05/03/2013')
 
     date_airports = pd.DataFrame(list(product(date_list, airport_list)), columns=['DateOfDeparture', 'AirPort'])
 
@@ -244,6 +269,13 @@ def gen_state_feature_df():
 
     return state_features_df
 
+def gen_routes_df():
+
+    return pd.read_csv('../data/routes_means.csv', sep=';')
+
+
+
+
 def create_db():
     
     database = {}
@@ -251,5 +283,6 @@ def create_db():
     database['AirportStatistics'] = gen_statistics_df()
     database['Airport'] = gen_airport_df()
     database['StateFeatures'] = gen_state_feature_df()
+    database['Routes'] = gen_routes_df()
     return database
 
