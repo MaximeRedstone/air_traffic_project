@@ -38,6 +38,7 @@ def _encode_dates(X, drop=False):
     X_encoded.loc[:, 'week'] = X_encoded['DateOfDeparture'].dt.week
     X_encoded.loc[:, 'n_days'] = X_encoded['DateOfDeparture'].apply(
         lambda date: (date - pd.to_datetime("1970-01-01")).days)
+    
     X_encoded.loc[:, 'day_nb'] = X_encoded['DateOfDeparture'].dt.dayofyear
     
     X_encoded['leap_year_year'] = X_encoded['year'].apply(
@@ -51,7 +52,10 @@ def _encode_dates(X, drop=False):
     X_encoded.drop(['leap_year_year', 'leap_year_month', 'leap_year', 'day_nb'], inplace=True, axis=1)
     X_encoded.rename({'day_nb_leap': 'day_nb'}, axis=1, inplace=True)
     
+    X_encoded.loc[:, 'year'].astype("int64")
+    
     if drop:
+        print('drop DateOfDeparture')
         X_encoded.drop('DateOfDeparture', inplace=True, axis=1)
         
     return X_encoded
