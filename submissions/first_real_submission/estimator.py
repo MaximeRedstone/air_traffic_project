@@ -82,6 +82,7 @@ def _merge_external_data(X):
         X.loc[:, "DateBooked"] = pd.to_datetime(X['DateBooked'])
 
         ext_data = pd.read_csv(filepath)
+        print(filepath)
         ext_data.loc[:, "DateOfDeparture"] = pd.to_datetime(ext_data['DateOfDeparture'])
 
         nation_wide_daily = ext_data[['DateOfDeparture', 'AirPort', 'Arrival', 'route_mean', 
