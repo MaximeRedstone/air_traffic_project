@@ -7,7 +7,7 @@ from sklearn.model_selection import GridSearchCV, cross_val_score
 import numpy as np
 
 from geopy.point import Point
-import geopy
+import geopy.distance
 
 import os
 import pandas as pd
