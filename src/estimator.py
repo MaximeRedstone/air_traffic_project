@@ -6,7 +6,9 @@ from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import GridSearchCV, cross_val_score
 import numpy as np
 
-import geopy.distance
+from geopy.point import Point
+import geopy
+
 import os
 import pandas as pd
 
@@ -83,8 +85,6 @@ def _merge_external_data(X):
 
         ext_data = pd.read_csv(filepath)
 
-        print(filepath)
-
         ext_data.loc[:, "DateOfDeparture"] = pd.to_datetime(ext_data['DateOfDeparture'])
 
         nation_wide_daily = ext_data[['DateOfDeparture', 'AirPort', 'Arrival', 'route_mean', 
@@ -106,7 +106,8 @@ def _merge_external_data(X):
         'Max VisibilityKm', 'Mean VisibilityKm', 'Min VisibilitykM', 'Max Wind SpeedKm/h', 
         'Mean Wind SpeedKm/h', 'CloudCover', 'WindDirDegrees', 'LoadFactorDomestic',
         'PassengersDomestic', 'latitude_deg', 'longitude_deg', 'state', 'pop2010', 
-        'UnemploymentRate', 'holidays', 'GDP_per_cap', 'closest_holidays']]
+        'UnemploymentRate', 'holidays', 'GDP_per_cap', 'closest_holidays',
+        'Total', 'Flights', 'Booths', 'Mean per flight']]
 
         airport_info_dep = airport_info_dep.rename(
             columns={'AirPort': 'Departure',
@@ -138,11 +139,14 @@ def _merge_external_data(X):
             'UnemploymentRate': 'UnemploymentRate_dep', 
             'holidays': 'holidays_dep',
             'closest_holidays': 'closest_holidays_dep', 
-            'GDP_per_cap': 'GDP_per_cap_dep'})
+            'GDP_per_cap': 'GDP_per_cap_dep',
+            'Total': 'total_arr',
+            'Flights': 'flights_arr',
+            'Booths': 'booth_arr',
+            'Mean per flight': 'mean_per_flight_arr'})
 
         X_merged = pd.merge(
-            X_merged, airport_info_dep, how='left', on=['DateOfDeparture', 'Departure', 'Arrival'], sort=False
-        )
+            X_merged, airport_info_dep, how='left', on=['DateOfDeparture', 'Departure', 'Arrival'], sort=False)
 
         airport_info_arr = ext_data[['DateOfDeparture', 'Arrival',
         'AirPort', 'Max TemperatureC',	'Mean TemperatureC', 'Min TemperatureC', 'Dew PointC',
@@ -152,6 +156,7 @@ def _merge_external_data(X):
         'Mean Wind SpeedKm/h', 'CloudCover', 'WindDirDegrees', 'LoadFactorDomestic',
         'PassengersDomestic', 'latitude_deg', 'longitude_deg', 'state', 'pop2010', 
         'UnemploymentRate', 'holidays', 'GDP_per_cap', 'closest_holidays']]
+
         airport_info_arr = airport_info_arr.rename(
             columns={
             'Arrival': 'Departure',
@@ -185,20 +190,19 @@ def _merge_external_data(X):
             'holidays': 'holidays_arr',
             'closest_holidays': 'closest_holidays_arr', 
             'GDP_per_cap': 'GDP_per_cap_arr'})
+
         X_merged = pd.merge(
-            X_merged, airport_info_arr, how='left', on=['DateOfDeparture', 'Arrival', 'Departure'], sort=False
-        )
+            X_merged, airport_info_arr, how='left', on=['DateOfDeparture', 'Arrival', 'Departure'], sort=False)
 
-
-        X_merged['distance'] = X_merged.apply(lambda x: geopy.distance.geodesic(
-        (x.latitude_deg_dep, x.longitude_deg_dep), 
-        (x.latitude_deg_arr, x.longitude_deg_arr)).km, axis=1)
+        X_merged['distance'] = X_merged.apply(lambda x: geopy.distance.distance(
+            Point(latitude=x.latitude_deg_dep, longitude=x.longitude_deg_dep),
+            Point(latitude=x.latitude_deg_arr, longitude=x.longitude_deg_arr)).km, axis=1)
         
         X_merged = clean_df(X_merged)
 
-        features_to_keep = ['WeeksToDeparture', 'week_mean', 'day_mean', 'month_mean', 'day_nb_mean',
-                            'route_mean', 'std_wtd', 'n_days_departure',
-                            'distance', 'closest_holidays_dep']
+        # features_to_keep = ['WeeksToDeparture', 'week_mean', 'day_mean', 'month_mean', 'day_nb_mean',
+        #                     'route_mean', 'std_wtd', 'n_days_departure',
+        #                     'distance', 'closest_holidays_dep']
 
         # X_merged = X_merged[features_to_keep]
 
@@ -210,7 +214,7 @@ def get_estimator():
     # path to `estimator.py`. However, this variable is not defined in the
     # notebook and thus we must define the `__file__` variable to imitate
     # how a submission `.py` would work.
-    __file__ = os.path.join('submissions', 'test_1', 'estimator.py')
+    __file__ = os.path.join('submissions', 'first_real_submission', 'estimator.py')
     # filepath = os.path.join(os.path.dirname(__file__), 'external_data.csv')
 
     data_merger = FunctionTransformer(_merge_external_data)

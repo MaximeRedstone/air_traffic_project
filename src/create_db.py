@@ -22,11 +22,18 @@ Creates Database as Dictionnary - Tables include:
                 UnemploymentRate, State, Abbreviation, 
                 GDP_per_cap, holidays, closest_holidays
 
+- Passengers Airports:
+                    Date, Airport, Total, Flights, Booths, Mean per flight
+
 - Routes: Departure, Arrival, route_mean
 """
 
 import pandas as pd
 import warnings
+
+from sklearn.preprocessing import FunctionTransformer
+from merge_transformer import MergeTransformer
+
 
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
@@ -38,6 +45,23 @@ from generate_db_state_features import gen_state_features
 def gen_routes():
     return pd.read_csv('../data/routes_means.csv', sep=';')
 
+def gen_passengers():
+    passengers_df = pd.read_csv('../data/passengers_per_flight.csv', sep=',')
+    passengers_df.loc[:, 'Date'] = pd.to_datetime(passengers_df.loc[:, 'Date'], format='%d/%m/%Y')
+
+    date_range = pd.date_range(start='01/01/2011', end='05/03/2013')
+    date_df = pd.DataFrame(date_range, columns=['Date'])
+
+    merge_transform = MergeTransformer(
+        X_ext=passengers_df,
+        how='left', on=['Date'])
+    date_df = merge_transform.fit_transform(date_df)
+
+    date_df.interpolate(method='linear', inplace=True)
+
+    date_df.to_csv('../data/interpolation.csv')
+    return date_df
+
 def create_db():
     
     database = {}
@@ -46,5 +70,6 @@ def create_db():
     database['Airport'] = gen_airport()
     database['StateFeatures'] = gen_state_features()
     database['Routes'] = gen_routes()
+    database['Passengers'] = gen_passengers()
     return database
 
