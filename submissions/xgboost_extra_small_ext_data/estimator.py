@@ -81,11 +81,7 @@ def _merge_external_data(X):
         
         X_merged.rename({'n_days':'n_days_departure'}, axis=1, inplace=True)
         
-        features_to_keep = ['WeeksToDeparture',  'std_wtd', 'n_days_departure',
-                            'week_mean', 'day_mean', 'month_mean', 'day_nb_mean', 'route_mean',
-                            'distance', 'flights_arr', 'booth_arr', 'total_arr', 'mean_per_flight_arr']
-
-        X_merged = X_merged[features_to_keep]
+        X_merged.drop(['DateOfDeparture', 'Departure', 'Arrival'], axis=1, inplace=True)
 
         return X_merged
 
@@ -100,8 +96,8 @@ def get_estimator():
 
     data_merger = FunctionTransformer(_merge_external_data)
 
-    xg_reg = xgb.XGBRegressor(objective='reg:squarederror', colsample_bytree=0.7, learning_rate=0.1, 
-                          n_estimators=250, max_depth=12, min_child_weight=4, subsample=0.96)
+    xg_reg = xgb.XGBRegressor(objective='reg:squarederror', colsample_bytree=0.7, learning_rate=0.075, 
+                          n_estimators=250, max_depth=13, min_child_weight=6, subsample=0.98, booster='gbtree')
 
     pipeline = make_pipeline(data_merger, xg_reg)
 
