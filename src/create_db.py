@@ -7,7 +7,7 @@ Creates Database as Dictionnary - Tables include:
         SP_stock_price, SP_stock_volume
         day_mean, week_mean, month_mean, day_nb_mean
 
-- Airport Statistics: 
+- Airport Statistics:
                     DateOfDeparture, AirPort, 
                     Max TemperatureC, Mean TemperatureC, Min TemperatureC, Dew PointC, MeanDew PointC, 
                     Min DewpointC, Max Humidity, Mean Humidity, Min Humidity, Max Sea Level PressurehPa
@@ -17,7 +17,7 @@ Creates Database as Dictionnary - Tables include:
 
 - Airport: iata, latitude_deg, longitude_deg, state, pop2010
 
-- State Features: 
+- State Features:
                 DateOfDeparture, year, month, day, weekday, week, n_days, day_nb, 
                 UnemploymentRate, State, Abbreviation, 
                 GDP_per_cap, holidays, closest_holidays
