@@ -13,10 +13,10 @@ in `requirements.txt`. You can install the dependencies with the
 following command-line:
 
 ```bash
-pip install -U -r requirements.txt
+source setup_env.rc
 ```
 
-If you are using `conda`, we provide an `environment.yml` file for similar
+If you are using `conda`, you can install the environment using the `environment.yml` file found in the config folder for similar
 usage.
 
 ### Challenge description
